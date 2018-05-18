@@ -28,12 +28,18 @@ int turned = 0;  // Holds the number of steps turned so far in an execution
 String newSteps;  // Used to change the number of steps while program is running
 bool entered;  // Used to tell if the user has entered something
 String newRpm;  // Used to change rpms while the program is running
-char units = "steps";
-int distance;
-char h;
-char t;
-char o;
-int hex [] = {0x003F, 0x1200, 0x00DB, 0x00CF, 0x00E6, 0x00ED, 0x00FD, 0x0007, 0x00FF, 0x00E7};
+String units = "steps";  // Sets the units to be output to display to be number of steps taken
+int distance;  // Holds the distance traversed by platform
+int thousands = 0;  // Holds the thousands place of distance
+int hundreds = 0;  // Holds the hundreds place of distance
+int tens = 0;  // Holds the tens place of distance
+int ones = 0;  // Holds the ones place of distance
+int m = 0;  // Holds hexadecimal value of thousands place
+int h = 0;  // Holds hexadecimal value of hundreds place
+int t = 0;  // Holds hexadecimal value of tens place
+int o = 0;  // Holds hexadecimal value of ones place
+int hex [] = {0x003F, 0x1200, 0x00DB, 0x00CF, 0x00E6, 0x00ED, 0x00FD, 0x0007, 0x00FF, 0x00E7};  // Array holding the corrisponding hexadecimal value of the index value
+int hexDot [] = {0x403F, 0x5200, 0x40DB, 0x40CF, 0x40E6, 0x40ED, 0x40FD, 0x4007, 0x40FF, 0x40E7};  // Array holding the corrisponding hexadecimal value, w/ dot, of the index value
 
 void setup()
 {
@@ -44,17 +50,14 @@ void setup()
   digitalWrite(PWA, LOW);  // Set power pins to LOW (off) to keep motor from over heating
   digitalWrite(PWB, LOW);
   stepper.setSpeed(rpms);  // set the speed of the motor (RPMs)
-  alpha4.writeDigitRaw(0, 0x0);
-  alpha4.writeDigitRaw(1, 0x0);
-  alpha4.writeDigitRaw(2, 0x0);
-  alpha4.writeDigitRaw(3, 0x0);
+  alpha4.clear();  // Clear display
   alpha4.writeDisplay();
   Serial.println("Begin motor control");
   Serial.println();
   //Print function list for user selection
   Serial.println("Enter number for control option:");
-  Serial.println("1. Set steps and speed");
-  Serial.println("2. Check steps and speed");
+  Serial.println("1. Set steps, speed and units");
+  Serial.println("2. Check steps, speed and units");
   Serial.println("3. Set total steps to 0 (Set origin)");
   Serial.println("4. Move away from motor (Counter clockwise)");
   Serial.println("5. Move toward motor (Clockwise)");
@@ -113,7 +116,7 @@ void Settings()
       entered = true;
     }
   }
-  Serial.println("Enter the RPMs you wish to move at:");
+  Serial.println("Enter the RPMs you wish to move at:");  // Start a loop to wait for user to input something
   entered = false;
   while(entered == false){
     newRpm = Serial.readString();
@@ -121,20 +124,24 @@ void Settings()
       entered = true;
     }
   }
-  Serial.println("Enter the units you wish to use: (mm, steps)"
+  Serial.println("Enter the units you wish to use: (mm, steps)");  // Start a loop to wait for user to input something
   entered = false;
   while (entered == false){
-    units == Serial.readString();
-    if (units == "mm" || units == "steps"){
-      entered == true;
+    units = Serial.readString();
+    units.toLowerCase();
+    if (units == "mm" || units == "steps"){ 
+      entered = true;
     }
   }
   steps = newSteps.toInt();  // Sets steps equal to integer value of user input 
   rpms = newRpm.toInt();
+  Serial.println();
   Serial.print("Steps:");
   Serial.println(steps);
   Serial.print("RPMs:");
   Serial.println(rpms);
+  Serial.print("Units:");
+  Serial.println(units);
   Serial.println();
   DisplayChoices();  // Displays the choices for user to pick again
 }
@@ -145,41 +152,64 @@ void CheckSettings()
   Serial.println(steps);
   Serial.print("Speed:");
   Serial.println(rpms);
+  Serial.print("Units:");
+  Serial.println(units);
   DisplayChoices();  // Displays the choices for user to pick again
 }
 
 void MoveForward()  // Moves forward in a precise but slow way
 {
   Serial.println("Moving forward");
+  Serial.println();
   digitalWrite(PWA, HIGH);  // Turn on power to run motor
   digitalWrite(PWB, HIGH);
   while(turned < steps){
     stepper.step(1);  // Motor steps one step
-    totalSteps++;
+    totalSteps++;  // Add on to total steps count
     turned++;
-    distance = totalSteps;
-    int hundreds = (int)floor(distance/100);
-    distance = distance % 100;
-    int tens = (int)floor(distance / 10);
-    distance = distance % 10;
-    int ones = (int)distance;
-    int h = hex[hundreds];
-    int t = hex[tens];
-    int o = hex[ones];
-    alpha4.writeDigitRaw(0, h);
-    alpha4.writeDigitRaw(1, t);
-    alpha4.writeDigitRaw(2, o);
-    alpha4.writeDigitAscii(3, 'm');
+    if (units == "steps"){
+      distance = totalSteps;  // Set distance equal to totalSteps to avoid changing totalSteps 
+      thousands = (int)floor(distance/1000);  // Gives a single digit that is the thousands spot of the distance value
+      distance = distance % 1000;  // Subtracts the thousands spot 
+      hundreds = (int)floor(distance/100);
+      distance = distance % 100;
+      tens = (int)floor(distance / 10);
+      distance = distance % 10;
+      ones = (int)distance;
+      m = hex[thousands];  // Get corrisponding hexadecimal value for the location
+      h = hex[hundreds];
+      t = hex[tens];
+      o = hex[ones];
+    }
+    if (units == "mm"){
+      distance = totalSteps * 5;  // Corrisponds to thread being turned, being used is five micometers per step
+      thousands = (int)floor(distance/1000);  // Gives a single digit that is the thousands spot of the distance value
+      distance = distance % 1000;  // Subtracts the thousands spot 
+      hundreds = (int)floor(distance/100);
+      distance = distance % 100;
+      tens = (int)floor(distance / 10);
+      distance = distance % 10;
+      ones = (int)distance;
+      m = hexDot[thousands];  // Add a decimal to the beginning of the first digit to give read out in millimeters
+      h = hex[hundreds];
+      t = hex[tens];
+      o = hex[ones];
+    }
+    alpha4.writeDigitRaw(0, m);  // Set display to value
+    alpha4.writeDigitRaw(1, h);
+    alpha4.writeDigitRaw(2, t);
+    alpha4.writeDigitRaw(3, o);
     alpha4.writeDisplay();
   }
   turned = 0;
   digitalWrite(PWA, LOW);  // Set power pins to LOW (off) to keep motor from over heating
   digitalWrite(PWB, LOW);
   CheckForRotation();
-  Serial.print("Number of rotations:");
+  Serial.print("Number of rotations: ");
   Serial.println(rotations);
-  Serial.print("Total steps taken from origin:");
+  Serial.print("Total steps taken from origin: ");
   Serial.println(totalSteps);
+  Serial.println();
   DisplayChoices();  // Displays the choices for user to pick again
 }
 
@@ -193,35 +223,46 @@ void MoveBackward()  // Moves backward in a precise but slow way
     totalSteps -= 1;
     turned++;
     if (units == "steps"){
-      distance = totalSteps; 
-      int hundreds = (int)floor(distance/100);
+      distance = abs(totalSteps); 
+      thousands = (int)floor(distance/1000);
+      distance = distance % 1000;
+      hundreds = (int)floor(distance/100);
       distance = distance % 100;
-      int tens = (int)floor(distance / 10);
+      tens = (int)floor(distance / 10);
       distance = distance % 10;
-      int ones = (int)distance; 
+      ones = (int)distance;
+      m = hex[thousands];
+      h = hex[hundreds];
+      t = hex[tens];
+      o = hex[ones];
     }
     if (units == "mm"){
-      distance == steps * 0.005;
-      int hundreds = (int)floor(distance/0.1);
-      distance = distance % 0.1;
-      int tens = (int)floor(distance / 0.01);
-      distance = distance % 0.001;
-      int ones = (int)distance;
+      distance = abs(totalSteps) * 5;  // Corrisponds to thread being turned, being used is five micometers per step
+      thousands = (int)floor(distance/1000);  // Gives a single digit that is the thousands spot of the distance value
+      distance = distance % 1000;  // Subtracts the thousands spot 
+      hundreds = (int)floor(distance/100);
+      distance = distance % 100;
+      tens = (int)floor(distance / 10);
+      distance = distance % 10;
+      ones = (int)distance;
+      m = hexDot[thousands];  // Add a decimal to the beginning of the first digit to give read out in millimeters
+      h = hex[hundreds];
+      t = hex[tens];
+      o = hex[ones];
     }
-    int h = hex[hundreds];
-    int t = hex[tens];
-    int o = hex[ones];
-    alpha4.writeDigitRaw(0, h);
-    alpha4.writeDigitRaw(1, t);
-    alpha4.writeDigitRaw(2, o);
-    alpha4.writeDigitAscii(3, 'm');
+    alpha4.writeDigitRaw(0, m);  // Set display to value
+    alpha4.writeDigitRaw(1, h);
+    alpha4.writeDigitRaw(2, t);
+    alpha4.writeDigitRaw(3, o);
     alpha4.writeDisplay();
   }
   turned = 0;
   digitalWrite(PWA, LOW);  // Set power pins to LOW (off) to keep motor from over heating
   digitalWrite(PWB, LOW);
   CheckForRotation();
+  Serial.print("Number of rotations: ");
   Serial.println(rotations);
+  Serial.print("Total steps taken from origin: ");
   Serial.println(totalSteps);
   DisplayChoices();  // Displays the choices for user to pick again
 }
@@ -244,10 +285,10 @@ void MoveFastF()  // Moves forward less precisely but in a timely manner
   digitalWrite(PWB, HIGH);
   Serial.println("Moving forward");
   stepper.step(steps);
-  Serial.println();
-  DisplayChoices();  // Displays the choices for user to pick again
   digitalWrite(PWA, LOW);  // Set power pins to LOW (off) to keep motor from over heating
   digitalWrite(PWB, LOW);
+  Serial.println();
+  DisplayChoices();  // Displays the choices for user to pick again
   DisplayChoices();  // Displays the choices for user to pick again
 }
 
@@ -257,7 +298,6 @@ void MoveFastB()  // Moves backward less precisely but in a timely manner
   digitalWrite(PWB, HIGH);
   Serial.println("Moving Backward");
   stepper.step(-steps);
-  DisplayChoices();  // Displays the choices for user to pick again
   digitalWrite(PWA, LOW);  // Set power pins to LOW (off) to keep motor from over heating
   digitalWrite(PWB, LOW);
   DisplayChoices();  // Displays the choices for user to pick again
@@ -266,8 +306,8 @@ void MoveFastB()  // Moves backward less precisely but in a timely manner
 void DisplayChoices()
 {
   Serial.println("Enter number for control option:");
-  Serial.println("1. Set steps and speed");
-  Serial.println("2. Check steps and speed");
+  Serial.println("1. Set steps, speed and units");
+  Serial.println("2. Check steps, speed and units");
   Serial.println("3. Set total steps to 0 (Set origin)");
   Serial.println("4. Move away from motor (Counter clockwise)");
   Serial.println("5. Move toward motor (Clockwise)");
